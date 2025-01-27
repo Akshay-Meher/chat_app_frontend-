@@ -1,0 +1,23 @@
+/* Custom thin scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+
+    /* Scrollbar width */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    /* Light gray background */
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #88bbeb;
+    /* Darker thumb color */
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #3c7dee;
+    /* Thumb color on hover */
+}
