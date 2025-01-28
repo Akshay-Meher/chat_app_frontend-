@@ -7,6 +7,7 @@ import CreateGroupChat from './CreateGroupChat';
 import CreateGroupChatModal from './CreateGroupChatModal';
 import GroupList from './GroupList';
 
+
 const Chat = () => {
     const { auth } = useAuth();
     const [socket, setSocket] = useState(null);
@@ -19,6 +20,25 @@ const Chat = () => {
     const [page, setPage] = useState(0); // Pagination state
     const [hasMore, setHasMore] = useState(true); // To stop fetching when no more messages
     const chatBoxRef = useRef(null); // Ref for chat container
+    const [selectedFiles, setSelectedFiles] = useState([]);
+    const [display, setDisplay] = useState(false);
+
+    const handleFileChange = (e) => {
+        const files = Array.from(e.target.files);
+
+        // Limit the number of files to 5
+        if (files.length + selectedFiles.length > 5) {
+            alert('You can only upload a maximum of 5 files.');
+            return;
+        }
+
+        // Add new files to the selected files list
+        setSelectedFiles((prevFiles) => [...prevFiles, ...files]);
+    };
+
+    const removeFile = (index) => {
+        setSelectedFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
+    };
 
     useEffect(() => {
 
@@ -153,17 +173,96 @@ const Chat = () => {
         }
     };
 
-    const sendGrpMessage = (e) => {
+    const sendGrpMessage = async (e) => {
         e.preventDefault();
-        if (newMessage.trim() && selectedGroup) {
-            socket.emit('groupMessage', {
-                groupId: selectedGroup.id,
-                senderId: auth.loggedInUser.id,
-                content: newMessage,
-            });
-            setNewMessage('');
+
+        if (selectedFiles.length === 0 && newMessage.trim() === '') {
+            alert('Please enter a message or select at least one file.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('message', newMessage);
+        selectedFiles.forEach((file, index) => {
+            // formData.append(`files[${index}]`, file); // Add files to FormData
+            formData.append('files', file);
+        });
+
+        console.log("formData", formData);
+
+        try {
+
+            if (selectedFiles.length !== 0) {
+                const response = await axios.post('http://localhost:5000/messages/uploadFiles', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                    },
+                });
+
+                console.log('Response:', response?.data);
+                console.log('response.success:', response);
+                const { success, message, data } = response?.data;
+                // const file_url = JSON.stringify(data?.filePaths);
+
+                const { filePaths, fileNames, fileTypes, fileSizes } = data;
+
+                const filename = JSON.stringify(fileNames);
+                const file_url = JSON.stringify(filePaths);
+                const filetype = JSON.stringify(fileTypes);
+                const filesize = JSON.stringify(fileSizes);
+
+                setSelectedFiles([]);
+                if (response.status == 200) {
+
+                    console.log(" socket.emit'groupMessage'");
+                    socket.emit('groupMessage', {
+                        groupId: selectedGroup.id,
+                        senderId: auth.loggedInUser.id,
+                        content: newMessage,
+                        filename, file_url, filetype, filesize
+                    });
+                    setNewMessage('');
+                }
+
+            } else if (newMessage.trim() && selectedGroup) {
+                console.log(" socket.emit'groupMessage'");
+                socket.emit('groupMessage', {
+                    groupId: selectedGroup.id,
+                    senderId: auth.loggedInUser.id,
+                    content: newMessage,
+                });
+                setNewMessage('');
+            }
+
+            // if (newMessage.trim() && selectedGroup) {
+
+            //     console.log(" socket.emit'groupMessage'");
+            //     socket.emit('groupMessage', {
+            //         groupId: selectedGroup.id,
+            //         senderId: auth.loggedInUser.id,
+            //         content: newMessage,
+            //         filename, file_url, filetype, filesize
+            //     });
+            //     setNewMessage('');
+            // }
+        } catch (error) {
+            console.error('Error sending message:', error);
         }
     };
+
+
+
+    // const sendGrpMessage = (e) => {
+    //     e.preventDefault();
+    //     if (newMessage.trim() && selectedGroup) {
+    //         socket.emit('groupMessage', {
+    //             groupId: selectedGroup.id,
+    //             senderId: auth.loggedInUser.id,
+    //             content: newMessage,
+    //         });
+    //         setNewMessage('');
+    //     }
+    // };
 
     const handleSelectUser = (user) => {
         console.log("onSelect user", user);
@@ -179,11 +278,7 @@ const Chat = () => {
 
             socket.emit('joinGroup', { groupId: selectedGroup.id, userId: auth.loggedInUser.id });
 
-
             socket.on('groupMessage', (message) => {
-
-                console.log("groupMessage", message);
-                console.log("selectedGroup.id", selectedGroup.id);
 
                 if (message.group_id === selectedGroup.id) {
                     console.log("setMessages", true);
@@ -211,6 +306,11 @@ const Chat = () => {
         setSelectedGroup(group);
         setSelectedUser(null);
     };
+
+
+    const handleReply = (msg) => {
+        console.log("handleReply", msg);
+    }
 
     return (
         <div className="container-fluid">
@@ -336,6 +436,7 @@ const Chat = () => {
                 }
 
                 {
+
                     // for group 
                     selectedGroup && <div className="col-md-9 d-flex flex-column">
                         <div className="p-3 bg-primary text-white">
@@ -350,40 +451,198 @@ const Chat = () => {
                         >
 
                             {
+
                                 [...messages]?.map((msg, idx) => (
-                                    // [...messages]?.reverse()?
-                                    <div key={idx} className={`d-flex mb-3 ${msg.sender_id === auth.loggedInUser.id ? 'justify-content-end' : 'justify-content-start'}`}>
+                                    <div
+                                        key={idx}
+                                        className={`d-flex mb-4 ${msg.sender_id === auth.loggedInUser.id ? 'justify-content-end' : 'justify-content-start'}`}
+                                    >
                                         <div
-                                            className="p-3 rounded-3 position-relative"
-                                            style={{
-                                                maxWidth: '70%',
-                                                backgroundColor: msg.sender_id === auth.loggedInUser.id ? '#007bff' : '#f1f0f0',
-                                                color: msg.sender_id === auth.loggedInUser.id ? 'white' : 'black',
-                                                wordBreak: 'break-word',
-                                            }}
+                                            className={`card shadow-sm ${msg.sender_id === auth.loggedInUser.id ? 'bg-primary text-white sender-item' : 'bg-light text-dark receiver-item'
+                                                }`}
+                                            style={{ maxWidth: '70%' }}
                                         >
-                                            <strong style={{ display: 'block', fontSize: '0.9rem' }}>
-                                                {msg.sender_id === auth.loggedInUser.id ? 'You' : msg.Sender?.name}
-                                            </strong>
-                                            <span style={{ fontSize: '1rem' }}>{msg.content}</span>
-                                            <small
-                                                className="text-muted position-absolute"
-                                                style={{
-                                                    fontSize: '0.75rem',
-                                                    bottom: '-20px',
-                                                    right: '5px',
-                                                }}
+
+                                            <div className="card-body" onMouseEnter={e => setDisplay(idx)} onMouseLeave={e => setDisplay(null)}>
+
+                                                <div
+                                                    className="hover-icons position-absolute"
+                                                    style={{
+                                                        top: '50%',
+                                                        transform: 'translateY(-50%)',
+                                                        right: msg.sender_id === auth.loggedInUser.id ? '100%' : 'auto',
+                                                        left: msg.sender_id === auth.loggedInUser.id ? 'auto' : '100%',
+                                                        display: display == idx ? "" : "none",
+                                                        flexDirection: 'column',
+                                                        gap: '5px',
+                                                    }}
+                                                >
+                                                    {/* Reply Icon */}
+                                                    <button className="btn btn-sm btn-light shadow-sm" title="Reply" onClick={() => { handleReply(msg) }}>
+                                                        <i className="bi bi-reply"></i>
+                                                        reply
+                                                    </button>
+                                                    {/* Reaction Icon */}
+                                                    <button className="btn btn-sm btn-light shadow-sm" title="React">
+                                                        <i className="bi bi-emoji-smile"></i>
+                                                        react
+                                                    </button>
+                                                </div>
+
+
+                                                {/* Sender Info */}
+                                                <h6 className="card-title " style={{ fontSize: '0.9rem' }}>
+                                                    {msg.sender_id === auth.loggedInUser.id ? 'You' : msg.Sender?.name}
+                                                </h6>
+
+                                                {/* Files Section */}
+                                                {msg.file_url && Array.isArray(JSON.parse(msg.file_url)) && (
+                                                    <div className="">
+                                                        {JSON.parse(msg.file_url).map((fileUrl, fileIdx) => {
+                                                            const validUrl = `http://localhost:5000/${fileUrl}`;
+                                                            const fileName = JSON.parse(msg.filename)[fileIdx];
+                                                            const fileType = JSON.parse(msg.filetype)[fileIdx];
+
+                                                            if (fileType.startsWith('image/')) {
+                                                                // Image preview
+                                                                return (
+                                                                    <div key={fileIdx} className="">
+                                                                        <img
+                                                                            src={validUrl}
+                                                                            alt={fileName}
+                                                                            className="img-fluid rounded"
+                                                                            style={{ maxHeight: '200px', objectFit: 'contain' }}
+                                                                        />
+                                                                        <small className="d-block text-muted mt-1">{fileName}</small>
+                                                                    </div>
+                                                                );
+                                                            } else {
+                                                                // File download link
+                                                                return (
+                                                                    <div key={fileIdx} className="file-item border m-1 p-3 bg-light shadow-sm">
+                                                                        <a href={validUrl} target="_blank" rel="noopener noreferrer" className="text-decoration-none">
+                                                                            <i className="bi bi-file-earmark"></i> {fileName}
+                                                                        </a>
+                                                                        <small className="d-block text-muted mt-1">({fileType})</small>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        })}
+
+
+                                                        {/* Message Content */}
+                                                        {msg.content && (
+                                                            <p className={`${msg.sender_id === auth.loggedInUser.id ? 'sender-message-item' : 'receiver-message-item'
+                                                                } card-text bg-info shadow-sm p-1 message-item`} style={{ fontSize: '1rem', wordBreak: 'break-word' }}>
+                                                                {msg.content}
+                                                            </p>
+                                                        )}
+
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Timestamp */}
+                                            <div
+                                                className={`text-muted small p-1 ${msg.sender_id === auth.loggedInUser.id ? 'text-end' : 'text-start'
+                                                    }`}
                                             >
                                                 {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </small>
+                                            </div>
                                         </div>
                                     </div>
-                                ))}
+                                ))
+                            }
+
+
                         </div>
 
                         {selectedGroup && (
+
                             <form onSubmit={sendGrpMessage} className="mt-2 p-3 border-top">
+                                {/* File preview section */}
+                                {selectedFiles.length > 0 && (
+                                    <div className="mt-2">
+                                        <div
+                                            className="d-flex align-items-center overflow-auto"
+                                            style={{
+                                                maxWidth: '100%',
+                                                whiteSpace: 'nowrap',
+                                                gap: '0.5rem',
+                                            }}
+                                        >
+                                            {selectedFiles.map((file, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="position-relative d-inline-block"
+                                                    style={{
+                                                        width: '80px',
+                                                        height: '80px',
+                                                        borderRadius: '0.5rem',
+                                                        background: '#f8f9fa',
+                                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                                                        overflow: 'hidden',
+                                                        textAlign: 'center',
+                                                    }}
+                                                >
+                                                    {file.type.startsWith('image/') ? (
+                                                        <img
+                                                            src={URL.createObjectURL(file)}
+                                                            alt={`Preview ${index}`}
+                                                            className="w-100 h-100"
+                                                            style={{ objectFit: 'cover' }}
+                                                        />
+                                                    ) : (
+                                                        <div
+                                                            className="d-flex flex-column justify-content-center align-items-center h-100"
+                                                            style={{ fontSize: '0.8rem' }}
+                                                        >
+                                                            <i className="bi bi-file-earmark-fill fs-4 text-secondary"></i>
+                                                            <span className="text-truncate w-100" title={file.name}>
+                                                                {file.name}
+                                                            </span>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Remove Button */}
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-sm btn-danger position-absolute"
+                                                        style={{
+                                                            top: '0',
+                                                            right: '0',
+                                                            padding: '0.25rem',
+                                                            borderRadius: '50%',
+                                                        }}
+                                                        onClick={() => removeFile(index)}
+                                                    >
+                                                        <i className="bi bi-x"></i>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p className="text-muted mt-2" style={{ fontSize: '0.85rem' }}>
+                                            You can upload a maximum of 5 files.
+                                        </p>
+                                    </div>
+                                )}
+
                                 <div className="input-group">
+                                    <div className="file-upload">
+                                        <label htmlFor="file-input" className="btn btn-outline-secondary">
+                                            <i className="bi bi-paperclip"></i>
+                                        </label>
+                                        <input
+                                            type="file"
+                                            name='files'
+                                            id="file-input"
+                                            style={{ display: 'none' }}
+                                            // accept="image/*,application/pdf" // Allowed file types
+                                            onChange={handleFileChange}
+                                            multiple // Allow multiple file selection
+                                        />
+                                    </div>
+
                                     <input
                                         type="text"
                                         className="form-control"
@@ -391,7 +650,8 @@ const Chat = () => {
                                         value={newMessage}
                                         onChange={(e) => setNewMessage(e.target.value)}
                                     />
-                                    <button className="btn btn-primary" type="submit">
+
+                                    <button className="btn btn-primary" type="submit" disabled={selectedFiles.length === 0 && newMessage.trim() === ''}>
                                         Send
                                     </button>
                                 </div>

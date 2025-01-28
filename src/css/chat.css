@@ -1,0 +1,33 @@
+.file-item {
+    border-top-left-radius: 8px;
+    /* Round top-left corner */
+    border-top-right-radius: 8px;
+    /* Round top-right corner */
+    border-bottom-left-radius: 8px;
+    /* Round bottom-left corner */
+    /* No rounding for bottom-right corner */
+}
+
+.sender-item {
+    border-top-left-radius: 25px;
+    border-bottom-left-radius: 25px;
+    border-bottom-right-radius: 25px;
+}
+
+.receiver-item {
+    border-top-right-radius: 25px;
+    border-bottom-left-radius: 25px;
+    border-bottom-right-radius: 25px;
+}
+
+.sender-message-item {
+    border-top-left-radius: 14px;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+}
+
+.receiver-message-item {
+    border-top-right-radius: 14px;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+}
