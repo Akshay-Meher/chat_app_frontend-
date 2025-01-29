@@ -22,7 +22,19 @@ const Chat = () => {
     const chatBoxRef = useRef(null); // Ref for chat container
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [display, setDisplay] = useState(false);
+    const [isReplyBox, setIsReplyBox] = useState(false);
+    const [replyMessage, setReplyMessage] = useState(null);
 
+
+    // * handle reply 
+    const handleReply = (msg) => {
+        console.log("handleReply", msg);
+        setIsReplyBox(true);
+        setReplyMessage(msg);
+    }
+
+
+    // * file change handler
     const handleFileChange = (e) => {
         const files = Array.from(e.target.files);
 
@@ -177,7 +189,6 @@ const Chat = () => {
         e.preventDefault();
 
         if (selectedFiles.length === 0 && newMessage.trim() === '') {
-            alert('Please enter a message or select at least one file.');
             return;
         }
 
@@ -188,9 +199,13 @@ const Chat = () => {
             formData.append('files', file);
         });
 
-        console.log("formData", formData);
 
         try {
+
+            // reply_to_message_id 
+            const reply_to_message_id = replyMessage ? replyMessage.id : null;
+
+            console.log("reply_to_message_id", reply_to_message_id);
 
             if (selectedFiles.length !== 0) {
                 const response = await axios.post('http://localhost:5000/messages/uploadFiles', formData, {
@@ -219,50 +234,31 @@ const Chat = () => {
                         groupId: selectedGroup.id,
                         senderId: auth.loggedInUser.id,
                         content: newMessage,
-                        filename, file_url, filetype, filesize
+                        filename, file_url, filetype, filesize,
+                        reply_to_message_id
                     });
                     setNewMessage('');
                 }
 
             } else if (newMessage.trim() && selectedGroup) {
                 console.log(" socket.emit'groupMessage'");
+                console.log("newMessage", newMessage);
                 socket.emit('groupMessage', {
                     groupId: selectedGroup.id,
                     senderId: auth.loggedInUser.id,
                     content: newMessage,
+                    reply_to_message_id
                 });
                 setNewMessage('');
             }
 
-            // if (newMessage.trim() && selectedGroup) {
-
-            //     console.log(" socket.emit'groupMessage'");
-            //     socket.emit('groupMessage', {
-            //         groupId: selectedGroup.id,
-            //         senderId: auth.loggedInUser.id,
-            //         content: newMessage,
-            //         filename, file_url, filetype, filesize
-            //     });
-            //     setNewMessage('');
-            // }
+            setReplyMessage(null);
+            setIsReplyBox(false);
         } catch (error) {
             console.error('Error sending message:', error);
         }
     };
 
-
-
-    // const sendGrpMessage = (e) => {
-    //     e.preventDefault();
-    //     if (newMessage.trim() && selectedGroup) {
-    //         socket.emit('groupMessage', {
-    //             groupId: selectedGroup.id,
-    //             senderId: auth.loggedInUser.id,
-    //             content: newMessage,
-    //         });
-    //         setNewMessage('');
-    //     }
-    // };
 
     const handleSelectUser = (user) => {
         console.log("onSelect user", user);
@@ -279,9 +275,10 @@ const Chat = () => {
             socket.emit('joinGroup', { groupId: selectedGroup.id, userId: auth.loggedInUser.id });
 
             socket.on('groupMessage', (message) => {
-
+                console.log("setMessages message111", message);
                 if (message.group_id === selectedGroup.id) {
                     console.log("setMessages", true);
+                    console.log("setMessages message", message);
                     setMessages((prevMessages) => [...prevMessages, message]);
                 }
             });
@@ -307,10 +304,6 @@ const Chat = () => {
         setSelectedUser(null);
     };
 
-
-    const handleReply = (msg) => {
-        console.log("handleReply", msg);
-    }
 
     return (
         <div className="container-fluid">
@@ -465,6 +458,7 @@ const Chat = () => {
 
                                             <div className="card-body" onMouseEnter={e => setDisplay(idx)} onMouseLeave={e => setDisplay(null)}>
 
+                                                {/* Reply Icon Box */}
                                                 <div
                                                     className="hover-icons position-absolute"
                                                     style={{
@@ -538,8 +532,47 @@ const Chat = () => {
                                                             </p>
                                                         )}
 
+
+
                                                     </div>
+
                                                 )}
+
+
+
+                                                {/* reply Message Content msg?.replyToMessage?.content || msg.replyToMessage?.filename */}
+
+                                                {msg.replyToMessage && (
+                                                    <p className="card-text bg-secondary bg-gradient shadow-sm p-2 message-item rounded" style={{ fontSize: '1rem', wordBreak: 'break-word' }}>
+                                                        {
+                                                            msg.replyToMessage?.content ? msg.replyToMessage.content
+                                                                : <div>
+                                                                    {
+                                                                        msg.replyToMessage.filename && JSON.parse(msg.replyToMessage.filename)
+                                                                            .map((fileName, fileIdx) => {
+                                                                                return (
+                                                                                    <div key={fileIdx} className="file-item border m-1 p-3 bg-light shadow-sm">
+                                                                                        <a target="_blank" rel="noopener noreferrer" className="text-decoration-none">
+                                                                                            <i className="bi bi-file-earmark"></i> {fileName}
+                                                                                        </a>
+
+                                                                                    </div>
+                                                                                );
+                                                                            })
+                                                                    }
+                                                                </div>
+                                                        }
+                                                    </p>
+                                                )}
+
+                                                {/* Message Content */}
+                                                {!msg.file_url && msg.content && (
+                                                    <p className={`${msg.sender_id === auth.loggedInUser.id ? 'sender-message-item' : 'receiver-message-item'
+                                                        } card-text bg-info shadow-sm p-2 message-item`} style={{ fontSize: '1rem', wordBreak: 'break-word' }}>
+                                                        {msg.content}
+                                                    </p>
+                                                )}
+
                                             </div>
 
                                             {/* Timestamp */}
@@ -560,6 +593,104 @@ const Chat = () => {
                         {selectedGroup && (
 
                             <form onSubmit={sendGrpMessage} className="mt-2 p-3 border-top">
+
+                                {/* reply box */}
+                                {isReplyBox && (
+                                    <div className="alert alert-warning alert-dismissible fade show" role="alert">
+                                        <div>
+                                            <h6 className="card-title " style={{ fontSize: '0.9rem' }}>
+                                                <strong>
+                                                    {replyMessage?.sender_id === auth.loggedInUser.id ? 'You' : replyMessage?.Sender?.name}
+                                                </strong>
+                                            </h6>
+                                            {
+                                                replyMessage?.content && <p className={`${replyMessage?.sender_id === auth.loggedInUser.id ? 'sender-message-item' : 'receiver-message-item'
+                                                    } card-text bg-info shadow-sm p-2 message-item`} style={{ fontSize: '1rem', wordBreak: 'break-word' }}>{replyMessage?.content}
+                                                </p>
+
+                                            }
+
+                                            {
+                                                // replyMessage?.file_url && Array.isArray(JSON.parse(replyMessage.file_url)) && JSON.parse(replyMessage.file_url).map((fileUrl, fileIdx) => {
+                                                //     const validUrl = `http://localhost:5000/${fileUrl}`;
+                                                //     const fileName = JSON.parse(replyMessage.filename)[fileIdx];
+                                                //     const fileType = JSON.parse(replyMessage.filetype)[fileIdx];
+
+                                                //     if (fileType.startsWith('image/')) {
+                                                //         // Image preview
+                                                //         return (
+                                                //             <div key={fileIdx} className="">
+                                                //                 <img
+                                                //                     src={validUrl}
+                                                //                     alt={fileName}
+                                                //                     className="img-fluid rounded"
+                                                //                     style={{ maxHeight: '200px', objectFit: 'contain' }}
+                                                //                 />
+                                                //                 <small className="d-block text-muted mt-1">{fileName}</small>
+                                                //             </div>
+                                                //         );
+                                                //     } else {
+                                                //         // File download link
+                                                //         return (
+                                                //             <div key={fileIdx} className="file-item border m-1 p-3 bg-light shadow-sm">
+                                                //                 <a href={validUrl} target="_blank" rel="noopener noreferrer" className="text-decoration-none">
+                                                //                     <i className="bi bi-file-earmark"></i> {fileName}
+                                                //                 </a>
+                                                //                 <small className="d-block text-muted mt-1">({fileType})</small>
+                                                //             </div>
+                                                //         );
+                                                //     }
+                                                // })
+                                                <div className="d-flex overflow-auto align-items-center p-1 gap-2" style={{ maxWidth: '100%', whiteSpace: 'nowrap' }}>
+                                                    {replyMessage?.file_url &&
+                                                        Array.isArray(JSON.parse(replyMessage.file_url)) &&
+                                                        JSON.parse(replyMessage.file_url).map((fileUrl, fileIdx) => {
+                                                            const validUrl = `http://localhost:5000/${fileUrl}`;
+                                                            const fileName = JSON.parse(replyMessage.filename)[fileIdx];
+                                                            const fileType = JSON.parse(replyMessage.filetype)[fileIdx];
+
+                                                            return (
+                                                                <div key={fileIdx} className="d-flex flex-column align-items-center text-center">
+                                                                    {fileType.startsWith('image/') ? (
+                                                                        <div className="border rounded p-1 bg-light">
+                                                                            <img
+                                                                                src={validUrl}
+                                                                                alt={fileName}
+                                                                                className="rounded"
+                                                                                style={{ height: '60px', width: 'auto', objectFit: 'cover' }}
+                                                                            />
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="file-item border rounded p-2 bg-light shadow-sm text-center">
+                                                                            <a href={validUrl} target="_blank" rel="noopener noreferrer" className="text-decoration-none small">
+                                                                                <i className="bi bi-file-earmark"></i>
+                                                                            </a>
+                                                                        </div>
+                                                                    )}
+                                                                    <small className="text-muted mt-1" style={{ fontSize: '9px', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                        {fileName}
+                                                                    </small>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                </div>
+
+                                            }
+
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="btn-close"
+                                            aria-label="Close"
+                                            onClick={e => {
+                                                setIsReplyBox(false);
+                                                setReplyMessage(null);
+                                            }}
+                                        ></button>
+                                    </div>
+                                )}
+
+
                                 {/* File preview section */}
                                 {selectedFiles.length > 0 && (
                                     <div className="mt-2">
