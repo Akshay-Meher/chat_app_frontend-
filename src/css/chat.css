@@ -31,3 +31,31 @@
     border-bottom-left-radius: 14px;
     border-bottom-right-radius: 14px;
 }
+
+
+/* emoji */
+.emoji-parent {
+    position: relative;
+    /* overflow: hidden; */
+}
+
+.emoji-reactions {
+    /* padding: 10px; */
+    margin: 10px;
+    background-color: blanchedalmond;
+    border-radius: 15px;
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.emoji {
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: transform 0.1s;
+}
+
+.emoji:hover {
+    transform: scale(1.2);
+}

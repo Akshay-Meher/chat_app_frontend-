@@ -24,6 +24,72 @@ const Chat = () => {
     const [display, setDisplay] = useState(false);
     const [isReplyBox, setIsReplyBox] = useState(false);
     const [replyMessage, setReplyMessage] = useState(null);
+    const [emojis, setEmojis] = useState([]);
+    const [isEmojiSend, setIsEmojiSend] = useState(true);
+
+    // * fetch Emojis
+
+    useEffect(() => {
+        const fetchEmojis = async () => {
+            try {
+                // Make the API request
+                const response = await axios.get("http://localhost:5000/emoji/getAll");
+                // console.log("fetchEmojis", response.data);
+                // console.log("fetchEmojis", typeof (response.data));
+                setEmojis(response?.data?.data);
+            } catch (err) {
+                // Handle any errors
+                console.log("error fetchEmojis");
+            }
+        };
+
+        // Call the async function
+        fetchEmojis();
+    }, []);
+
+    // * handleEmojiClick
+    const handleEmojiClick = async (msg, emoji) => {
+        console.log("Msg", msg);
+        console.log("emoji", emoji);
+        try {
+
+            setMessages((prevMessages) => prevMessages.map((message) => {
+                if (message.id === msg.id) {
+
+                    const existingReactionIndex = message?.reactions?.findIndex(reaction => reaction.emoji.id === emoji.id);
+                    let newReactions = [...message.reactions];
+
+                    // If the emoji exists, remove it
+                    if (existingReactionIndex !== -1) {
+                        let removed = newReactions.splice(existingReactionIndex, 1);
+                    } else {
+                        //  Add the new emoji reaction
+                        newReactions.push({ emoji: emoji });
+                    }
+
+                    return {
+                        ...message,
+                        reactions: newReactions
+                    };
+
+                }
+                return message;
+            }));
+
+            const response = await axios.post("http://localhost:5000/reactions/add", {
+                user_id: auth.loggedInUser.id, message_id: msg.id, emojiId: emoji.id
+            });
+
+            if (isEmojiSend) {
+                console.log('socket.emit ');
+                socket.emit('emojiReaction', { msg, emoji });
+                setIsEmojiSend(false);
+            }
+            // console.log("handleEmojiClick", response.data);
+        } catch (error) {
+            console.log("error handleEmojiClick response", error);
+        }
+    }
 
 
     // * handle reply 
@@ -282,6 +348,12 @@ const Chat = () => {
                     setMessages((prevMessages) => [...prevMessages, message]);
                 }
             });
+
+            socket.on('emojiReaction', ({ msg, emoji }) => {
+                console.log("emojiReaction", msg);
+                console.log("Listening emojiReaction", emoji);
+                // handleEmojiClick(msg, emoji);
+            });
         }
 
         return () => {
@@ -451,12 +523,15 @@ const Chat = () => {
                                         className={`d-flex mb-4 ${msg.sender_id === auth.loggedInUser.id ? 'justify-content-end' : 'justify-content-start'}`}
                                     >
                                         <div
-                                            className={`card shadow-sm ${msg.sender_id === auth.loggedInUser.id ? 'bg-primary text-white sender-item' : 'bg-light text-dark receiver-item'
+                                            className={`card emoji-parent shadow-sm ${msg.sender_id === auth.loggedInUser.id ? 'bg-primary text-white sender-item' : 'bg-light text-dark receiver-item'
                                                 }`}
                                             style={{ maxWidth: '70%' }}
                                         >
 
-                                            <div className="card-body" onMouseEnter={e => setDisplay(idx)} onMouseLeave={e => setDisplay(null)}>
+                                            <div className="card-body mb-0"
+                                                onMouseEnter={e => { setDisplay(idx); }}
+                                                onMouseLeave={e => { setDisplay(null) }}
+                                            >
 
                                                 {/* Reply Icon Box */}
                                                 <div
@@ -475,11 +550,6 @@ const Chat = () => {
                                                     <button className="btn btn-sm btn-light shadow-sm" title="Reply" onClick={() => { handleReply(msg) }}>
                                                         <i className="bi bi-reply"></i>
                                                         reply
-                                                    </button>
-                                                    {/* Reaction Icon */}
-                                                    <button className="btn btn-sm btn-light shadow-sm" title="React">
-                                                        <i className="bi bi-emoji-smile"></i>
-                                                        react
                                                     </button>
                                                 </div>
 
@@ -573,17 +643,57 @@ const Chat = () => {
                                                     </p>
                                                 )}
 
+
+                                                {/* Emojis reactions */}
+
+                                                {/* Emojis reactions */}
+                                                <div className="emoji-reactions" style={{ display: display == idx ? "" : "none" }}>
+                                                    {emojis.map((emoji, index) => (
+                                                        <span
+                                                            key={index}
+                                                            className="emoji"
+                                                            onClick={() => {
+                                                                handleEmojiClick(msg, emoji)
+                                                            }}
+                                                        >
+                                                            {emoji.unicode}
+                                                        </span>
+                                                    ))}
+                                                </div>
+
+                                                {/* reacted Emojis */}
+                                                {/* <div className="emoji-reactions1"> */}
+                                                {
+                                                    msg.reactions?.length > 0 && msg.reactions.map((reaction, index) => {
+                                                        return <span
+                                                            key={index}
+                                                            className="emoji"
+                                                            style={{ padding: "2px", borderRadius: "20px", backgroundColor: "blanchedalmond" }}
+                                                            onClick={() => {
+                                                                console.log("emoji reactions", reaction);
+                                                            }}
+                                                        >
+                                                            {reaction.emoji.unicode}
+                                                        </span>
+                                                    })
+                                                }
+                                                {/* </div> */}
+
                                             </div>
 
                                             {/* Timestamp */}
-                                            <div
-                                                className={`text-muted small p-1 ${msg.sender_id === auth.loggedInUser.id ? 'text-end' : 'text-start'
+                                            <span
+                                                className={`text-muted small p-1 ${msg.sender_id === auth.loggedInUser.id ? 'text-end text-white' : 'text-start'
                                                     }`}
                                             >
                                                 {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </div>
+                                            </span>
+
                                         </div>
+
+
                                     </div>
+
                                 ))
                             }
 
@@ -611,36 +721,6 @@ const Chat = () => {
                                             }
 
                                             {
-                                                // replyMessage?.file_url && Array.isArray(JSON.parse(replyMessage.file_url)) && JSON.parse(replyMessage.file_url).map((fileUrl, fileIdx) => {
-                                                //     const validUrl = `http://localhost:5000/${fileUrl}`;
-                                                //     const fileName = JSON.parse(replyMessage.filename)[fileIdx];
-                                                //     const fileType = JSON.parse(replyMessage.filetype)[fileIdx];
-
-                                                //     if (fileType.startsWith('image/')) {
-                                                //         // Image preview
-                                                //         return (
-                                                //             <div key={fileIdx} className="">
-                                                //                 <img
-                                                //                     src={validUrl}
-                                                //                     alt={fileName}
-                                                //                     className="img-fluid rounded"
-                                                //                     style={{ maxHeight: '200px', objectFit: 'contain' }}
-                                                //                 />
-                                                //                 <small className="d-block text-muted mt-1">{fileName}</small>
-                                                //             </div>
-                                                //         );
-                                                //     } else {
-                                                //         // File download link
-                                                //         return (
-                                                //             <div key={fileIdx} className="file-item border m-1 p-3 bg-light shadow-sm">
-                                                //                 <a href={validUrl} target="_blank" rel="noopener noreferrer" className="text-decoration-none">
-                                                //                     <i className="bi bi-file-earmark"></i> {fileName}
-                                                //                 </a>
-                                                //                 <small className="d-block text-muted mt-1">({fileType})</small>
-                                                //             </div>
-                                                //         );
-                                                //     }
-                                                // })
                                                 <div className="d-flex overflow-auto align-items-center p-1 gap-2" style={{ maxWidth: '100%', whiteSpace: 'nowrap' }}>
                                                     {replyMessage?.file_url &&
                                                         Array.isArray(JSON.parse(replyMessage.file_url)) &&
