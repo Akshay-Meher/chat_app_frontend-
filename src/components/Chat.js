@@ -25,7 +25,7 @@ const Chat = () => {
     const [isReplyBox, setIsReplyBox] = useState(false);
     const [replyMessage, setReplyMessage] = useState(null);
     const [emojis, setEmojis] = useState([]);
-    const [isEmojiSend, setIsEmojiSend] = useState(true);
+
 
     // * fetch Emojis
 
@@ -53,44 +53,71 @@ const Chat = () => {
         console.log("emoji", emoji);
         try {
 
-            setMessages((prevMessages) => prevMessages.map((message) => {
-                if (message.id === msg.id) {
+            // setMessages((prevMessages) => prevMessages.map((message) => {
+            //     if (message.id === msg.id) {
 
-                    const existingReactionIndex = message?.reactions?.findIndex(reaction => reaction.emoji.id === emoji.id);
-                    let newReactions = [...message.reactions];
+            //         const existingReactionIndex = message?.reactions?.findIndex(reaction => reaction.emoji.id === emoji.id);
+            //         let newReactions = [...message.reactions];
 
-                    // If the emoji exists, remove it
-                    if (existingReactionIndex !== -1) {
-                        let removed = newReactions.splice(existingReactionIndex, 1);
-                    } else {
-                        //  Add the new emoji reaction
-                        newReactions.push({ emoji: emoji });
-                    }
+            //         // If the emoji exists, remove it
+            //         if (existingReactionIndex !== -1) {
+            //             let removed = newReactions.splice(existingReactionIndex, 1);
+            //         } else {
+            //             //  Add the new emoji reaction
+            //             newReactions.push({ emoji: emoji });
+            //         }
 
-                    return {
-                        ...message,
-                        reactions: newReactions
-                    };
+            //         return {
+            //             ...message,
+            //             reactions: newReactions
+            //         };
 
-                }
-                return message;
-            }));
+            //     }
+            //     return message;
+            // }));
 
             const response = await axios.post("http://localhost:5000/reactions/add", {
                 user_id: auth.loggedInUser.id, message_id: msg.id, emojiId: emoji.id
             });
 
-            if (isEmojiSend) {
-                console.log('socket.emit ');
-                socket.emit('emojiReaction', { msg, emoji });
-                setIsEmojiSend(false);
-            }
+            console.log('socket.emit handleEmojiClick');
+            socket.emit('emojiReaction', { msg, emoji });
+
             // console.log("handleEmojiClick", response.data);
         } catch (error) {
             console.log("error handleEmojiClick response", error);
         }
     }
 
+
+    const handleLiveEmojiClick = async (msg, emoji) => {
+
+        console.log("handleLiveEmojiClick");
+        await fetchMessages(true);
+        setMessages((prevMessages) => prevMessages.map((message) => {
+            if (message.id === msg.id) {
+
+                const existingReactionIndex = message?.reactions?.findIndex(reaction => reaction.emoji.id === emoji.id);
+                let newReactions = [...message.reactions];
+
+                // If the emoji exists, remove it
+                if (existingReactionIndex !== -1) {
+                    let removed = newReactions.splice(existingReactionIndex, 1);
+                } else {
+                    //  Add the new emoji reaction
+                    newReactions.push({ emoji: emoji });
+                }
+
+                return {
+                    ...message,
+                    reactions: newReactions
+                };
+
+            }
+            return message;
+        }));
+
+    }
 
     // * handle reply 
     const handleReply = (msg) => {
@@ -353,6 +380,7 @@ const Chat = () => {
                 console.log("emojiReaction", msg);
                 console.log("Listening emojiReaction", emoji);
                 // handleEmojiClick(msg, emoji);
+                handleLiveEmojiClick(msg, emoji);
             });
         }
 
